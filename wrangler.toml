@@ -9,4 +9,3 @@ binding = "ASSETS"
 
 [[kv_namespaces]]
 binding = "TOKENS"
-id = "REPLACE_AFTER_FIRST_DEPLOY"
