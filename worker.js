@@ -48,33 +48,47 @@ function timingSafeEqual(a, b) {
   return diff === 0;
 }
 
-// ---------- password hashing (PBKDF2-SHA256) ----------
+// ---------- password hashing ----------
+// A single keyed HMAC (rather than a many-iteration PBKDF2) is used
+// deliberately: the Workers free plan gives each request only ~10ms of CPU
+// time, and a slow KDF can blow that budget and fail the request. Keying the
+// hash with a server-only secret (the "pepper", generated once and never
+// exposed) means an attacker without access to this Worker's storage cannot
+// brute-force the hash offline even though each check is cheap.
 
-async function hashPassword(password, saltBytes, iterations = 150000) {
-  const keyMaterial = await crypto.subtle.importKey("raw", ENC.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt: saltBytes, iterations, hash: "SHA-256" },
-    keyMaterial,
-    256
-  );
-  return bytesToBase64Url(new Uint8Array(bits));
+async function getOrCreatePepperKey(env) {
+  let raw = await env.TOKENS.get("auth:password_pepper");
+  if (!raw) {
+    raw = bytesToBase64Url(randomBytes(32));
+    await env.TOKENS.put("auth:password_pepper", raw);
+    raw = await env.TOKENS.get("auth:password_pepper");
+  }
+  return crypto.subtle.importKey("raw", base64UrlToBytes(raw), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
+}
+
+async function hashPassword(env, password, saltBytes) {
+  const key = await getOrCreatePepperKey(env);
+  const data = new Uint8Array(saltBytes.length + ENC.encode(password).length);
+  data.set(saltBytes, 0);
+  data.set(ENC.encode(password), saltBytes.length);
+  const sig = await crypto.subtle.sign("HMAC", key, data);
+  return bytesToBase64Url(new Uint8Array(sig));
 }
 
 async function setPassword(env, password) {
   const salt = randomBytes(16);
-  const hash = await hashPassword(password, salt);
-  await env.TOKENS.put(
-    "auth:password",
-    JSON.stringify({ hash, salt: bytesToBase64Url(salt), iterations: 150000 })
-  );
+  const hash = await hashPassword(env, password, salt);
+  await env.TOKENS.put("auth:password", JSON.stringify({ hash, salt: bytesToBase64Url(salt) }));
 }
 
 async function checkPassword(env, password) {
   const raw = await env.TOKENS.get("auth:password");
   if (!raw) return false;
-  const { hash, salt, iterations } = JSON.parse(raw);
+  const { hash, salt } = JSON.parse(raw);
   const saltBytes = base64UrlToBytes(salt);
-  const candidate = await hashPassword(password, saltBytes, iterations);
+  const candidate = await hashPassword(env, password, saltBytes);
   return timingSafeEqual(candidate, hash);
 }
 
