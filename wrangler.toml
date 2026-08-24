@@ -1,0 +1,12 @@
+name = "restaurant-den-anker-dashboard-handmatig"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[kv_namespaces]]
+binding = "TOKENS"
+id = "REPLACE_AFTER_FIRST_DEPLOY"
