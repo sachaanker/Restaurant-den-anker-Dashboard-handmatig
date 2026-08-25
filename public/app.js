@@ -279,7 +279,7 @@
 
   async function loadEntryTable() {
     const end = new Date();
-    const start = new Date(end.getTime() - 29 * 86400000);
+    const start = new Date(end.getTime() - 730 * 86400000);
     const iso = (d) => d.toISOString().slice(0, 10);
     const data = await api(`/api/entries?start=${iso(start)}&end=${iso(end)}`);
     const tbody = document.querySelector("#entry-table tbody");
@@ -307,6 +307,7 @@
     document.getElementById("set-venue-name").value = currentSettings.venueName || "";
     document.getElementById("set-week-start").value = String(currentSettings.weekStart ?? 1);
     document.getElementById("set-default-period").value = currentSettings.defaultPeriod || "this_week";
+    document.getElementById("set-fy-start-month").value = String(currentSettings.fiscalYearStartMonth ?? 10);
     document.getElementById("set-color").value = currentSettings.color || "#B8863E";
     document.getElementById("set-target-revenue").value = currentSettings.targets?.revenuePerWeek ?? "";
     document.getElementById("set-target-wage-pct").value = currentSettings.targets?.wagePct ?? "";
@@ -319,6 +320,7 @@
         venueName: document.getElementById("set-venue-name").value,
         weekStart: Number(document.getElementById("set-week-start").value),
         defaultPeriod: document.getElementById("set-default-period").value,
+        fiscalYearStartMonth: Number(document.getElementById("set-fy-start-month").value),
         color: document.getElementById("set-color").value,
         timezone: currentSettings.timezone || "Europe/Brussels",
         targets: {
