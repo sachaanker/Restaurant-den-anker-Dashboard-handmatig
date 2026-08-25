@@ -212,14 +212,23 @@ function resolvePeriod(periodKey, settings, customStart, customEnd) {
       start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
       break;
     }
-    case "this_fy":
-      start = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
+    case "this_fy": {
+      const fyStartMonth = (settings.fiscalYearStartMonth ?? 1) - 1; // 0-indexed
+      let fyStartYear = today.getUTCFullYear();
+      if (today.getUTCMonth() < fyStartMonth) fyStartYear -= 1;
+      start = new Date(Date.UTC(fyStartYear, fyStartMonth, 1));
       end = today;
       break;
-    case "last_fy":
-      start = new Date(Date.UTC(today.getUTCFullYear() - 1, 0, 1));
-      end = new Date(Date.UTC(today.getUTCFullYear() - 1, 11, 31));
+    }
+    case "last_fy": {
+      const fyStartMonth = (settings.fiscalYearStartMonth ?? 1) - 1;
+      let fyStartYear = today.getUTCFullYear();
+      if (today.getUTCMonth() < fyStartMonth) fyStartYear -= 1;
+      const thisFYStart = new Date(Date.UTC(fyStartYear, fyStartMonth, 1));
+      end = addDays(thisFYStart, -1);
+      start = new Date(Date.UTC(fyStartYear - 1, fyStartMonth, 1));
       break;
+    }
     case "custom":
       start = parseISODate(customStart);
       end = parseISODate(customEnd);
@@ -399,19 +408,31 @@ const CSV_FIELD_MAP = {
   transaction_count: "transactions",
 };
 
-async function storeEntryRows(env, rows) {
+const ENTRY_FIELDS = ["revenue", "costOfSales", "wages", "superAmount", "overheads", "transactions"];
+
+function normalizeFromCSV(row) {
+  const out = { date: row.date };
+  for (const [csvKey, field] of Object.entries(CSV_FIELD_MAP)) {
+    if (field === "date") continue;
+    if (row[csvKey] !== undefined && row[csvKey] !== "") out[field] = Number(row[csvKey]);
+  }
+  return out;
+}
+
+async function storeEntryRows(env, rows, opts = {}) {
+  const fromCSV = !!opts.fromCSV;
   let stored = 0;
-  for (const row of rows) {
+  for (const rawRow of rows) {
+    const row = fromCSV ? normalizeFromCSV(rawRow) : rawRow;
     const date = row.date;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
     const key = `entry:${date}`;
     const existingRaw = await env.TOKENS.get(key);
     const existing = existingRaw ? JSON.parse(existingRaw) : {};
     const merged = { ...existing };
-    for (const [csvKey, field] of Object.entries(CSV_FIELD_MAP)) {
-      if (field === "date") continue;
-      if (row[csvKey] !== undefined && row[csvKey] !== "") {
-        merged[field] = Number(row[csvKey]);
+    for (const field of ENTRY_FIELDS) {
+      if (row[field] !== undefined && row[field] !== null && row[field] !== "") {
+        merged[field] = Number(row[field]);
       }
     }
     merged.enteredAt = new Date().toISOString();
@@ -474,7 +495,7 @@ export default {
           const text = await request.text();
           rows = csvParse(text);
         }
-        const stored = await storeEntryRows(env, rows);
+        const stored = await storeEntryRows(env, rows, { fromCSV: !contentType.includes("application/json") });
         await env.TOKENS.put("meta:last_ingest", new Date().toISOString());
         return json({ ok: true, stored });
       }
@@ -493,6 +514,7 @@ export default {
           defaultPeriod: "this_week",
           color: "#B8863E",
           timezone: "Europe/Brussels",
+          fiscalYearStartMonth: 10,
           targets: {},
         };
         const settings = raw ? { ...defaults, ...JSON.parse(raw) } : defaults;

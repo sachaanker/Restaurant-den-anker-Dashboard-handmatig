@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Den Anker — dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<!-- ============ GATE: password setup (first run) ============ -->
+<div id="screen-setup" class="screen hidden">
+  <div class="gate-card">
+    <div class="gate-mark">⚓</div>
+    <h1>Zet een wachtwoord</h1>
+    <p class="gate-sub">Dit beschermt je cijfers. Kies iets dat je onthoudt — alleen jij gebruikt dit.</p>
+    <input id="setup-password" type="password" placeholder="Wachtwoord (minstens 8 tekens)" autocomplete="new-password" />
+    <button id="setup-submit" class="btn-primary">Wachtwoord instellen</button>
+    <p id="setup-error" class="error hidden"></p>
+  </div>
+</div>
+
+<!-- ============ GATE: login ============ -->
+<div id="screen-login" class="screen hidden">
+  <div class="gate-card">
+    <div class="gate-mark">⚓</div>
+    <h1>Den Anker</h1>
+    <p class="gate-sub">Voer je wachtwoord in.</p>
+    <input id="login-password" type="password" placeholder="Wachtwoord" autocomplete="current-password" />
+    <button id="login-submit" class="btn-primary">Inloggen</button>
+    <p id="login-error" class="error hidden"></p>
+  </div>
+</div>
+
+<!-- ============ MAIN DASHBOARD ============ -->
+<div id="screen-dashboard" class="screen hidden">
+  <header class="top">
+    <div class="brand">
+      <span class="gate-mark small">⚓</span>
+      <span id="venue-name">Restaurant Den Anker</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="board">Overzicht</button>
+      <button class="tab" data-view="connections">Gegevens</button>
+      <button class="tab" data-view="settings">Instellingen</button>
+    </nav>
+    <button id="logout-btn" class="btn-ghost">Afmelden</button>
+  </header>
+
+  <div id="unverified-banner" class="banner hidden">
+    Sommige cijfers zijn nog niet bevestigd. Zie "Gegevens" om ze na te kijken.
+  </div>
+
+  <!-- ---- BOARD VIEW ---- -->
+  <main id="view-board" class="view">
+    <div class="period-row">
+      <div class="chain-rule"></div>
+      <div class="period-buttons" id="period-buttons">
+        <button data-period="this_week">Deze week</button>
+        <button data-period="last_week">Vorige week</button>
+        <button data-period="this_month">Deze maand</button>
+        <button data-period="last_month">Vorige maand</button>
+        <button data-period="this_fy">Dit boekjaar</button>
+        <button data-period="last_fy">Vorig boekjaar</button>
+        <button data-period="custom">Aangepast</button>
+      </div>
+      <div id="custom-range" class="custom-range hidden">
+        <input type="date" id="custom-start" />
+        <span>tot</span>
+        <input type="date" id="custom-end" />
+        <button id="custom-apply" class="btn-small">Toepassen</button>
+      </div>
+    </div>
+    <div class="period-label" id="period-label"></div>
+
+    <div class="kpi-grid" id="kpi-grid"><!-- filled by app.js --></div>
+
+    <p class="last-synced" id="last-synced"></p>
+  </main>
+
+  <!-- ---- CONNECTIONS / DATA VIEW ---- -->
+  <main id="view-connections" class="view hidden">
+    <h2>Cijfers ingeven</h2>
+    <p class="muted">
+      Voer per dag de bedragen in zoals ze in je boekhouding (Exact Online, excl. btw)
+      en je kassa (Lightspeed) staan. Eerder ingegeven dagen kan je gewoon overschrijven.
+    </p>
+
+    <form id="entry-form" class="entry-form">
+      <label>Datum <input type="date" id="entry-date" required /></label>
+      <label>Omzet (excl. btw) <input type="number" step="0.01" id="entry-revenue" /></label>
+      <label>Kostprijs verkopen <input type="number" step="0.01" id="entry-cogs" /></label>
+      <label>Lonen <input type="number" step="0.01" id="entry-wages" /></label>
+      <label>RSZ / sociale lasten <input type="number" step="0.01" id="entry-super" /></label>
+      <label>Overheadkosten <input type="number" step="0.01" id="entry-overheads" /></label>
+      <label>Aantal transacties <input type="number" step="1" id="entry-transactions" /></label>
+      <button type="submit" class="btn-primary">Opslaan</button>
+    </form>
+    <p id="entry-status" class="status hidden"></p>
+
+    <h2>Upload code</h2>
+    <p class="muted">
+      Wil je liever een bestand uploaden in plaats van elke dag manueel in te typen?
+      Vraag je opgezet-code aan bij wie het dashboard gebouwd heeft — deze wordt
+      ingesteld als een geheime sleutel op Cloudflare, nooit hier zichtbaar.
+    </p>
+
+    <h2>Recente invoer</h2>
+    <table class="entry-table" id="entry-table">
+      <thead>
+        <tr><th>Datum</th><th>Omzet</th><th>Kostprijs</th><th>Lonen+RSZ</th><th>Overhead</th><th>Transacties</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+
+  <!-- ---- SETTINGS VIEW ---- -->
+  <main id="view-settings" class="view hidden">
+    <h2>Instellingen</h2>
+    <form id="settings-form" class="settings-form">
+      <label>Naam van je zaak <input type="text" id="set-venue-name" /></label>
+      <label>Eerste dag van de week
+        <select id="set-week-start">
+          <option value="1">Maandag</option>
+          <option value="0">Zondag</option>
+        </select>
+      </label>
+      <label>Standaard periode
+        <select id="set-default-period">
+          <option value="this_week">Deze week</option>
+          <option value="this_month">Deze maand</option>
+          <option value="this_fy">Dit boekjaar</option>
+        </select>
+      </label>
+      <label>Start boekjaar
+        <select id="set-fy-start-month">
+          <option value="1">Januari</option>
+          <option value="2">Februari</option>
+          <option value="3">Maart</option>
+          <option value="4">April</option>
+          <option value="5">Mei</option>
+          <option value="6">Juni</option>
+          <option value="7">Juli</option>
+          <option value="8">Augustus</option>
+          <option value="9">September</option>
+          <option value="10">Oktober</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+      </label>
+      <label>Accentkleur <input type="color" id="set-color" /></label>
+      <label>Doel omzet per week <input type="number" step="0.01" id="set-target-revenue" /></label>
+      <label>Doel loonpercentage (%) <input type="number" step="0.1" id="set-target-wage-pct" /></label>
+      <button type="submit" class="btn-primary">Bewaren</button>
+    </form>
+    <p id="settings-status" class="status hidden"></p>
+  </main>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
